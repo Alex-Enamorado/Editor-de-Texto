@@ -4,10 +4,10 @@ Proyecto NetBeans Java SE (Swing). Reparto del trabajo:
 
 | Requisito | Responsable | Estado |
 |---|---|---|
-| 1. Formato de texto | Diego | pendiente |
-| 2. Persistencia binaria `.edt` | Marcelo | **listo** |
-| 3. Tablas | — | fuera de alcance (el enunciado lo pide para equipos de 4) |
-| 4. Interfaz gráfica | Alex | pendiente |
+| 1. Formato de texto | Diego | listo |
+| 2. Persistencia binaria `.edt` | Marcelo | listo |
+| 3. Tablas | Diego + Marcelo | crear, editar y guardar en el `.edt`; falta formato dentro de las celdas |
+| 4. Interfaz gráfica | Alex | listo |
 
 ## Cómo se conecta la persistencia con lo demás
 
@@ -18,7 +18,7 @@ formato binario.
 
 ```java
 DocumentoEdt doc = PuenteSwing.desdeSwing(textPane.getStyledDocument());
-File guardado = EdtArchivo.guardar(doc, archivoElegido);   // agrega .edt si falta
+archivoActual = EdtArchivo.guardar(doc, archivoElegido);   // agrega .edt si falta
 ```
 
 **Abrir** (menú Archivo → Abrir):
@@ -27,7 +27,7 @@ File guardado = EdtArchivo.guardar(doc, archivoElegido);   // agrega .edt si fal
 try {
     DocumentoEdt doc = EdtArchivo.abrir(archivoElegido);
     PuenteSwing.haciaSwing(doc, textPane.getStyledDocument());
-} catch (EdtException e) {
+} catch (EdtException | BadLocationException e) {
     JOptionPane.showMessageDialog(ventana, e.getMessage(),
             "No se pudo abrir", JOptionPane.ERROR_MESSAGE);
 }
@@ -39,6 +39,14 @@ El formato de texto (requisito 1) se guarda solo: cualquier atributo que se
 aplique con `StyleConstants` sobre el `StyledDocument` —color, familia,
 tamaño, negrita, cursiva, subrayado, tachado— lo recoge `PuenteSwing`.
 
+Las tablas también: `PuenteSwing` reconoce cualquier `TablaDocumentos` insertada
+con `insertarEn(...)` y la guarda en la sección 3 del archivo, en su posición.
+
+**Pendiente del requisito 3:** las celdas guardan texto plano. Para tener formato
+dentro de las celdas hay que cambiar `TablaDocumentos` (celdas con `JTextPane` en
+vez de `String`) y ampliar el bloque `TBL1`; el `.edt` no habría que tocarlo,
+porque guarda el bloque de la tabla sin interpretarlo.
+
 ## Estructura del archivo binario
 
 Documentada en [FORMATO_EDT.md](FORMATO_EDT.md).
@@ -46,5 +54,5 @@ Documentada en [FORMATO_EDT.md](FORMATO_EDT.md).
 ## Probar la persistencia sin la GUI
 
 Ejecutar `editordetexto.PruebaPersistencia`: guarda un documento con formato
-mezclado, lo reabre, compara, y fuerza los casos de error (archivo
+mezclado y una tabla, lo reabre, compara, y fuerza los casos de error (archivo
 inexistente, extensión equivocada, corrupto, truncado, firma inválida).

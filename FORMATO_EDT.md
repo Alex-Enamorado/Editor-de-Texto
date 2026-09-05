@@ -82,14 +82,38 @@ Los rangos son contiguos y cubren todo el texto. Como cada rango lleva a la
 vez color, tamaño, familia y los cuatro estilos, **cualquier combinación
 queda guardada** (ej. rojo + negrita + 16 + Arial es un solo rango).
 
-#### Sección 3 — Tablas (id = 3) — *reservada*
+#### Sección 3 — Tablas (id = 3)
 
 | Tipo | Campo |
 |---|---|
-| u32 | cantidadDeTablas — hoy siempre `0` |
+| u32 | cantidadDeTablas |
 
-Sección reservada para el requisito 3. Se escribe vacía para que un archivo
-generado hoy siga siendo legible si más adelante se agregan tablas.
+y luego, por cada tabla:
+
+| Tipo | Campo | Notas |
+|---|---|---|
+| s32 | posición | índice del carácter marcador dentro del texto |
+| u32 | longitudBloque | bytes del bloque que sigue |
+| byte[…] | bloque | tabla serializada por `TablaDocumentos.guardarBinario` |
+
+En la sección 1 cada tabla ocupa **un solo carácter**, el marcador `U+FFFC`
+(*object replacement character*), que es el mismo que usa Swing para anclar un
+componente dentro del texto. El campo `posición` dice sobre cuál de esos
+marcadores va cada tabla, así que al reabrir las tablas caen exactamente donde
+estaban.
+
+El contenido del bloque lo define `Tablas.TablaDocumentos` y `EdtArchivo` no lo
+interpreta: solo lo guarda con su longitud por delante. Por eso el formato de
+las tablas puede cambiar sin tocar el lector del `.edt`, y una tabla ilegible se
+puede saltar sin perder el resto del documento. Su estructura interna es:
+
+| Tipo | Campo |
+|---|---|
+| u32 | firma `TBL1` (`0x54424C31`) |
+| u32 | versión (`1`) |
+| u32 | filas |
+| u32 | columnas |
+| — | por celda, en orden de fila: `u32` longitud + texto UTF-8 |
 
 ### Checksum (4 bytes)
 
@@ -111,7 +135,7 @@ Documento: texto `"Hola"`, todo en Arial 16, negrita, rojo (`0xFFFF0000`).
 0028  FF FF 00 00 00 10 01     |........|   color ARGB, tamaño 16, estilos=1 (negrita)
 002F  00 05 41 72 69 61 6C     |..Arial |   longitud 5 + "Arial"
 0036  00 03 00 00 00 04        |........|   sección 3 (tablas), 4 bytes
-003C  00 00 00 00              |........|   0 tablas
+003C  00 00 00 00              |........|   0 tablas (este ejemplo no tiene)
 0040  FB D2 73 74              |..st    |   CRC32
 ```
 
@@ -131,8 +155,10 @@ mostrar en un diálogo. Las validaciones van en este orden:
 | No es un `.edt` | los 4 primeros bytes no son `EDT1` | «…no es un documento .edt válido (firma incorrecta)» |
 | Versión futura | versiónMayor ≠ 1 | «Versión de formato no soportada…» |
 | Truncado a la mitad | se acaban los bytes al leer (`EOFException`) | «…está truncado: se cortó antes de terminar de leerlo» |
-| Longitudes absurdas | sección > 64 MB o rangos > 4 000 000 | «…está corrupto: tamaño inválido» |
+| Longitudes absurdas | sección > 64 MB, rangos > 4 000 000 o tablas > 10 000 | «…está corrupto: tamaño inválido» |
 | Formato fuera del texto | `inicio + longitud > texto.length()` | «…hay formato que apunta fuera del texto» |
+| Tabla fuera del texto | `posición >= texto.length()` | «…hay una tabla anclada fuera del texto» |
+| Tabla ilegible | firma/versión/dimensiones inválidas en el bloque | «No se pudo leer una tabla del archivo: …» |
 | Bytes alterados | el CRC32 no coincide | «…está corrupto o incompleto: el checksum no coincide» |
 
 Los topes de tamaño existen para que un archivo dañado no haga reservar

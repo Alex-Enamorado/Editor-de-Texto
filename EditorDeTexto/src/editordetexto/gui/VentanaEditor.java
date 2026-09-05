@@ -4,11 +4,13 @@ import editordetexto.modelo.DocumentoEdt;
 import editordetexto.persistencia.EdtArchivo;
 import editordetexto.persistencia.EdtException;
 import editordetexto.persistencia.PuenteSwing;
+import Tablas.TablaDocumentos;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.GridLayout;
 import java.awt.GraphicsEnvironment;
 import java.awt.Insets;
 import java.io.File;
@@ -22,7 +24,11 @@ import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
@@ -52,6 +58,7 @@ public class VentanaEditor extends JFrame {
     private final JToggleButton btnSubrayado = new JToggleButton("S");
     private final JToggleButton btnTachado   = new JToggleButton("T");
     private final JButton btnColor = new JButton("Color");
+    private final JButton btnTabla = new JButton("Tabla");
 
     private boolean actualizandoBarra;
     private File archivoActual;
@@ -93,19 +100,112 @@ public class VentanaEditor extends JFrame {
     }
 
     private void nuevo() {
-        // paso 2
+        if (areaTexto.getDocument().getLength() > 0
+                && !confirmar("Nuevo documento",
+                        "Se perdera lo que no este guardado. Continuar?")) {
+            return;
+        }
+        areaTexto.setText("");
+        archivoActual = null;
+        actualizarTitulo();
     }
 
     private void abrir() {
-        // paso 3
+        JFileChooser selector = crearSelector();
+        if (selector.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File archivo = selector.getSelectedFile();
+        try {
+            DocumentoEdt documento = EdtArchivo.abrir(archivo);
+            PuenteSwing.haciaSwing(documento, areaTexto.getStyledDocument());
+            areaTexto.setCaretPosition(0);
+            archivoActual = archivo;
+            actualizarTitulo();
+        } catch (EdtException | BadLocationException e) {
+            error("No se pudo abrir", e.getMessage());
+        }
     }
 
     private void guardar() {
-        // paso 4
+        if (archivoActual == null) {
+            guardarComo();
+        } else {
+            escribirEn(archivoActual);
+        }
     }
 
     private void guardarComo() {
-        // paso 4
+        JFileChooser selector = crearSelector();
+        if (archivoActual != null) {
+            selector.setSelectedFile(archivoActual);
+        }
+        if (selector.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File destino = EdtArchivo.asegurarExtension(selector.getSelectedFile());
+        if (destino.exists() && !confirmar("Guardar como",
+                "\"" + destino.getName() + "\" ya existe. Reemplazarlo?")) {
+            return;
+        }
+        escribirEn(destino);
+    }
+
+    private void escribirEn(File archivo) {
+        try {
+            DocumentoEdt documento = PuenteSwing.desdeSwing(areaTexto.getStyledDocument());
+            archivoActual = EdtArchivo.guardar(documento, archivo);
+            actualizarTitulo();
+        } catch (EdtException | BadLocationException e) {
+            error("No se pudo guardar", e.getMessage());
+        }
+    }
+
+    private void insertarTabla() {
+        JSpinner filas = new JSpinner(new SpinnerNumberModel(2, 1, 100, 1));
+        JSpinner columnas = new JSpinner(new SpinnerNumberModel(2, 1, 50, 1));
+
+        JPanel panel = new JPanel(new GridLayout(2, 2, 6, 6));
+        panel.add(new JLabel("Filas:"));
+        panel.add(filas);
+        panel.add(new JLabel("Columnas:"));
+        panel.add(columnas);
+
+        if (JOptionPane.showConfirmDialog(this, panel, "Insertar tabla",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
+                != JOptionPane.OK_OPTION) {
+            return;
+        }
+        try {
+            TablaDocumentos tabla = new TablaDocumentos(
+                    (Integer) filas.getValue(), (Integer) columnas.getValue());
+            tabla.insertarEn(areaTexto.getStyledDocument(), areaTexto.getCaretPosition());
+        } catch (BadLocationException | IllegalArgumentException e) {
+            error("No se pudo insertar la tabla", e.getMessage());
+        }
+    }
+
+    private JFileChooser crearSelector() {
+        JFileChooser selector = new JFileChooser();
+        selector.setAcceptAllFileFilterUsed(false);
+        selector.setFileFilter(new FileNameExtensionFilter(
+                "Documentos del editor (*" + EdtArchivo.EXTENSION + ")", "edt"));
+        return selector;
+    }
+
+    private void actualizarTitulo() {
+        setTitle((archivoActual == null ? "Sin titulo" : archivoActual.getName())
+                + " - Editor de Texto");
+    }
+
+    private boolean confirmar(String titulo, String mensaje) {
+        return JOptionPane.showConfirmDialog(this, mensaje, titulo,
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE)
+                == JOptionPane.OK_OPTION;
+    }
+
+    private void error(String titulo, String mensaje) {
+        JOptionPane.showMessageDialog(this, mensaje, titulo, JOptionPane.ERROR_MESSAGE);
     }
 
     private JToolBar crearBarraFormato() {
@@ -127,6 +227,7 @@ public class VentanaEditor extends JFrame {
         btnSubrayado.setToolTipText("Subrayado");
         btnTachado.setToolTipText("Tachado");
         btnColor.setToolTipText("Color de la fuente");
+        btnTabla.setToolTipText("Insertar tabla");
 
         barra.add(comboFuente);
         barra.add(comboTamano);
@@ -137,6 +238,8 @@ public class VentanaEditor extends JFrame {
         barra.add(btnTachado);
         barra.addSeparator();
         barra.add(btnColor);
+        barra.addSeparator();
+        barra.add(btnTabla);
         return barra;
     }
 
@@ -174,6 +277,7 @@ public class VentanaEditor extends JFrame {
             }
         });
         btnColor.addActionListener(e -> elegirColor());
+        btnTabla.addActionListener(e -> insertarTabla());
 
         areaTexto.addCaretListener(e -> actualizarBarra());
     }

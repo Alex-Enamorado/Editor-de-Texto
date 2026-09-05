@@ -2,6 +2,7 @@ package editordetexto.persistencia;
 
 import editordetexto.modelo.DocumentoEdt;
 import editordetexto.modelo.RangoFormato;
+import editordetexto.modelo.TablaEmbebida;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -35,6 +36,7 @@ public final class EdtArchivo {
     // Topes de cordura: evitan reservar memoria absurda si el archivo esta danado.
     private static final int MAX_SECCION = 64 * 1024 * 1024;
     private static final int MAX_RANGOS = 4_000_000;
+    private static final int MAX_TABLAS = 10_000;
 
     private EdtArchivo() {
     }
@@ -55,7 +57,7 @@ public final class EdtArchivo {
         try {
             byte[] secTexto = seccionTexto(documento);
             byte[] secFormato = seccionFormato(documento);
-            byte[] secTablas = seccionTablas();
+            byte[] secTablas = seccionTablas(documento);
 
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
             DataOutputStream out = new DataOutputStream(buffer);
@@ -118,10 +120,16 @@ public final class EdtArchivo {
         return b.toByteArray();
     }
 
-    private static byte[] seccionTablas() throws IOException {
+    private static byte[] seccionTablas(DocumentoEdt documento) throws IOException {
+        List<TablaEmbebida> tablas = documento.tablas();
         ByteArrayOutputStream b = new ByteArrayOutputStream();
         DataOutputStream o = new DataOutputStream(b);
-        o.writeInt(0);   // numTablas: reservado para el requisito 3
+        o.writeInt(tablas.size());
+        for (TablaEmbebida t : tablas) {
+            o.writeInt(t.posicion());
+            o.writeInt(t.datos().length);
+            o.write(t.datos());
+        }
         o.flush();
         return b.toByteArray();
     }
@@ -179,6 +187,7 @@ public final class EdtArchivo {
 
             String texto = null;
             List<RangoFormato> rangos = new ArrayList<>();
+            List<TablaEmbebida> tablas = new ArrayList<>();
 
             for (int i = 0; i < numSecciones; i++) {
                 int id = in.readUnsignedShort();
@@ -194,7 +203,8 @@ public final class EdtArchivo {
                 switch (id) {
                     case SEC_TEXTO -> texto = leerSeccionTexto(contenido, nombre);
                     case SEC_FORMATO -> rangos = leerSeccionFormato(contenido, nombre);
-                    default -> { }   // reservada o de una version futura: se salta
+                    case SEC_TABLAS -> tablas = leerSeccionTablas(contenido, nombre);
+                    default -> { }   // seccion de una version futura: se salta
                 }
             }
 
@@ -203,11 +213,12 @@ public final class EdtArchivo {
                         + "\" esta corrupto: falta la seccion de texto.");
             }
             validarRangos(rangos, texto.length(), nombre);
+            validarTablas(tablas, texto.length(), nombre);
 
             // El checksum va al final para que un archivo cortado se reporte
             // como truncado (EOF) y no como "checksum incorrecto".
             verificarChecksum(bytes, nombre);
-            return new DocumentoEdt(texto, rangos);
+            return new DocumentoEdt(texto, rangos, tablas);
 
         } catch (EOFException e) {
             throw new EdtException("El archivo \"" + nombre
@@ -267,6 +278,41 @@ public final class EdtArchivo {
                     new String(fuente, StandardCharsets.UTF_8), tamano, color, bits));
         }
         return rangos;
+    }
+
+    private static List<TablaEmbebida> leerSeccionTablas(byte[] contenido, String nombre)
+            throws IOException, EdtException {
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream(contenido));
+        int cantidad = in.readInt();
+        if (cantidad < 0 || cantidad > MAX_TABLAS) {
+            throw new EdtException("El archivo \"" + nombre
+                    + "\" esta corrupto: cantidad de tablas invalida (" + cantidad + ").");
+        }
+        List<TablaEmbebida> tablas = new ArrayList<>(Math.min(cantidad, 64));
+        for (int i = 0; i < cantidad; i++) {
+            int posicion = in.readInt();
+            int largo = in.readInt();
+            if (largo < 0 || largo > MAX_SECCION) {
+                throw new EdtException("El archivo \"" + nombre
+                        + "\" esta corrupto: el bloque de una tabla declara "
+                        + largo + " bytes.");
+            }
+            byte[] datos = new byte[largo];
+            in.readFully(datos);
+            tablas.add(new TablaEmbebida(posicion, datos));
+        }
+        return tablas;
+    }
+
+    private static void validarTablas(List<TablaEmbebida> tablas, int largoTexto, String nombre)
+            throws EdtException {
+        for (TablaEmbebida t : tablas) {
+            if (t.posicion() < 0 || t.posicion() >= largoTexto) {
+                throw new EdtException("El archivo \"" + nombre
+                        + "\" esta corrupto: hay una tabla anclada fuera del texto (posicion "
+                        + t.posicion() + " sobre " + largoTexto + ").");
+            }
+        }
     }
 
     private static void validarRangos(List<RangoFormato> rangos, int largoTexto, String nombre)

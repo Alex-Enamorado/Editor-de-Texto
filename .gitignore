@@ -1,3 +1,7 @@
 /JavaApplication27/nbproject/private/
 /EditorDeTexto/nbproject/private/
+
+# Salida de compilacion
+/out/
 /EditorDeTexto/build/
+/EditorDeTexto/dist/

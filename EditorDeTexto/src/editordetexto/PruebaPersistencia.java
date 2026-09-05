@@ -5,8 +5,10 @@ import editordetexto.modelo.RangoFormato;
 import editordetexto.persistencia.EdtArchivo;
 import editordetexto.persistencia.EdtException;
 import editordetexto.persistencia.PuenteSwing;
+import Tablas.TablaDocumentos;
 
 import java.awt.Color;
+import java.awt.Component;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +27,7 @@ public class PruebaPersistencia {
         Path carpeta = Files.createTempDirectory("pruebaEdt");
 
         pruebaIdaYVuelta(carpeta);
+        pruebaTablas(carpeta);
         pruebaBytePorByte(carpeta);
         pruebaArchivoNoExiste(carpeta);
         pruebaExtensionEquivocada(carpeta);
@@ -70,6 +73,44 @@ public class PruebaPersistencia {
                 mismosRangos(original.rangos(), revuelta.rangos())
                         && original.texto().equals(revuelta.texto()));
         System.out.println("   " + original + " -> " + archivo.length() + " bytes");
+    }
+
+    private static void pruebaTablas(Path carpeta) throws Exception {
+        StyledDocument doc = new DefaultStyledDocument();
+        doc.insertString(0, "Antes de la tabla\n", null);
+
+        TablaDocumentos tabla = new TablaDocumentos(2, 3);
+        tabla.establecerTexto(0, 0, "Producto");
+        tabla.establecerTexto(0, 2, "Precio");
+        tabla.establecerTexto(1, 0, "Café ñandú");
+        tabla.establecerTexto(1, 2, "1500");
+        int posicion = doc.getLength();
+        tabla.insertarEn(doc, posicion);
+        doc.insertString(doc.getLength(), "\nDespues", null);
+
+        File archivo = EdtArchivo.guardar(PuenteSwing.desdeSwing(doc),
+                new File(carpeta.toFile(), "contabla.edt"));
+
+        StyledDocument doc2 = new DefaultStyledDocument();
+        PuenteSwing.haciaSwing(EdtArchivo.abrir(archivo), doc2);
+
+        Component componente = StyleConstants.getComponent(
+                doc2.getCharacterElement(posicion).getAttributes());
+        verificar("la tabla vuelve en su posicion", componente instanceof TablaDocumentos);
+
+        if (componente instanceof TablaDocumentos t) {
+            verificar("dimensiones de la tabla",
+                    t.obtenerFilas() == 2 && t.obtenerColumnas() == 3);
+            verificar("contenido de las celdas",
+                    t.obtenerTexto(0, 0).equals("Producto")
+                            && t.obtenerTexto(0, 2).equals("Precio")
+                            && t.obtenerTexto(1, 0).equals("Café ñandú")
+                            && t.obtenerTexto(1, 2).equals("1500")
+                            && t.obtenerTexto(0, 1).isEmpty());
+        }
+        verificar("el texto alrededor de la tabla sigue igual",
+                doc2.getText(0, doc2.getLength()).startsWith("Antes de la tabla\n")
+                        && doc2.getText(0, doc2.getLength()).endsWith("\nDespues"));
     }
 
     private static void pruebaBytePorByte(Path carpeta) throws Exception {
