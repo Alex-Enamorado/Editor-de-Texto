@@ -21,7 +21,7 @@ import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
-/** Puente entre el StyledDocument del JTextPane y el DocumentoEdt que se guarda. */
+
 public final class PuenteSwing {
 
     private PuenteSwing() {
@@ -83,12 +83,16 @@ public final class PuenteSwing {
             doc.setCharacterAttributes(r.inicio(), r.longitud(), a, true);
         }
 
-        // Las tablas van despues: cada una se cuelga del caracter marcador que
-        // ya quedo en el texto, sin borrar el formato aplicado arriba.
+        // Reinserta el marcador con su componente para que JTextPane cree una
+        // ComponentView. Cambiar solamente atributos puede conservar la vista
+        // de texto creada al cargar el marcador y mostrar "OBJ".
         for (TablaEmbebida t : documento.tablas()) {
-            SimpleAttributeSet a = new SimpleAttributeSet();
+            SimpleAttributeSet a = new SimpleAttributeSet(
+                    doc.getCharacterElement(t.posicion()).getAttributes());
             StyleConstants.setComponent(a, reconstruirTabla(t));
-            doc.setCharacterAttributes(t.posicion(), 1, a, false);
+            String marcador = doc.getText(t.posicion(), 1);
+            doc.remove(t.posicion(), 1);
+            doc.insertString(t.posicion(), marcador, a);
         }
     }
 
