@@ -1,26 +1,36 @@
 package editordetexto.gui;
 
+import editordetexto.modelo.DocumentoEdt;
+import editordetexto.persistencia.EdtArchivo;
+import editordetexto.persistencia.EdtException;
+import editordetexto.persistencia.PuenteSwing;
+
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.Insets;
+import java.io.File;
 import java.util.function.Consumer;
 import javax.swing.JButton;
 import javax.swing.JColorChooser;
 import javax.swing.JComboBox;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
@@ -44,6 +54,7 @@ public class VentanaEditor extends JFrame {
     private final JButton btnColor = new JButton("Color");
 
     private boolean actualizandoBarra;
+    private File archivoActual;
 
     public VentanaEditor() {
         super("Sin titulo - Editor de Texto");
@@ -64,15 +75,37 @@ public class VentanaEditor extends JFrame {
         JMenuBar barra = new JMenuBar();
 
         JMenu archivo = new JMenu("Archivo");
-        archivo.add(new JMenuItem("Nuevo"));
-        archivo.add(new JMenuItem("Abrir..."));
-        archivo.add(new JMenuItem("Guardar"));
-        archivo.add(new JMenuItem("Guardar como..."));
+        archivo.add(item("Nuevo", e -> nuevo()));
+        archivo.add(item("Abrir...", e -> abrir()));
+        archivo.add(item("Guardar", e -> guardar()));
+        archivo.add(item("Guardar como...", e -> guardarComo()));
         archivo.addSeparator();
-        archivo.add(new JMenuItem("Salir"));
+        archivo.add(item("Salir", e -> System.exit(0)));
 
         barra.add(archivo);
         return barra;
+    }
+
+    private JMenuItem item(String texto, java.awt.event.ActionListener accion) {
+        JMenuItem mi = new JMenuItem(texto);
+        mi.addActionListener(accion);
+        return mi;
+    }
+
+    private void nuevo() {
+        // paso 2
+    }
+
+    private void abrir() {
+        // paso 3
+    }
+
+    private void guardar() {
+        // paso 4
+    }
+
+    private void guardarComo() {
+        // paso 4
     }
 
     private JToolBar crearBarraFormato() {
