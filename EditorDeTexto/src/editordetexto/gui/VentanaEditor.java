@@ -1,11 +1,14 @@
 package editordetexto.gui;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.Insets;
+import java.util.function.Consumer;
 import javax.swing.JButton;
+import javax.swing.JColorChooser;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
@@ -17,6 +20,11 @@ import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.MutableAttributeSet;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
 
 
 public class VentanaEditor extends JFrame {
@@ -34,6 +42,8 @@ public class VentanaEditor extends JFrame {
     private final JToggleButton btnSubrayado = new JToggleButton("S");
     private final JToggleButton btnTachado   = new JToggleButton("T");
     private final JButton btnColor = new JButton("Color");
+
+    private boolean actualizandoBarra;
 
     public VentanaEditor() {
         super("Sin titulo - Editor de Texto");
@@ -98,8 +108,93 @@ public class VentanaEditor extends JFrame {
     }
 
     private void conectarBarra() {
-        // TODO paso 3: aplicar el formato a la seleccion y sincronizar la barra
-        // con la posicion del cursor.
+        comboFuente.addActionListener(e -> {
+            if (actualizandoBarra) return;
+            Object fuente = comboFuente.getSelectedItem();
+            if (fuente != null) {
+                aplicarFormato(a -> StyleConstants.setFontFamily(a, fuente.toString()));
+            }
+        });
+        comboTamano.addActionListener(e -> {
+            if (!actualizandoBarra) {
+                aplicarFormato(a -> StyleConstants.setFontSize(a, tamanoElegido()));
+            }
+        });
+        btnNegrita.addActionListener(e -> {
+            if (!actualizandoBarra) {
+                aplicarFormato(a -> StyleConstants.setBold(a, btnNegrita.isSelected()));
+            }
+        });
+        btnCursiva.addActionListener(e -> {
+            if (!actualizandoBarra) {
+                aplicarFormato(a -> StyleConstants.setItalic(a, btnCursiva.isSelected()));
+            }
+        });
+        btnSubrayado.addActionListener(e -> {
+            if (!actualizandoBarra) {
+                aplicarFormato(a -> StyleConstants.setUnderline(a, btnSubrayado.isSelected()));
+            }
+        });
+        btnTachado.addActionListener(e -> {
+            if (!actualizandoBarra) {
+                aplicarFormato(a -> StyleConstants.setStrikeThrough(a, btnTachado.isSelected()));
+            }
+        });
+        btnColor.addActionListener(e -> elegirColor());
+
+        areaTexto.addCaretListener(e -> actualizarBarra());
+    }
+
+    private int tamanoElegido() {
+        Object valor = comboTamano.getSelectedItem();
+        try {
+            return Math.max(1, Integer.parseInt(String.valueOf(valor).trim()));
+        } catch (NumberFormatException e) {
+            return StyleConstants.getFontSize(atributosActuales());
+        }
+    }
+
+    private void elegirColor() {
+        Color inicial = StyleConstants.getForeground(atributosActuales());
+        Color color = JColorChooser.showDialog(this, "Color de fuente", inicial);
+        if (color != null) {
+            aplicarFormato(a -> StyleConstants.setForeground(a, color));
+        }
+    }
+
+    private void aplicarFormato(Consumer<MutableAttributeSet> cambio) {
+        SimpleAttributeSet atributos = new SimpleAttributeSet();
+        cambio.accept(atributos);
+
+        int inicio = areaTexto.getSelectionStart();
+        int fin = areaTexto.getSelectionEnd();
+        if (inicio != fin) {
+            StyledDocument doc = areaTexto.getStyledDocument();
+            doc.setCharacterAttributes(inicio, fin - inicio, atributos, false);
+        } else {
+            areaTexto.getInputAttributes().addAttributes(atributos);
+        }
+        areaTexto.requestFocusInWindow();
+    }
+
+    private AttributeSet atributosActuales() {
+        int inicio = areaTexto.getSelectionStart();
+        if (inicio != areaTexto.getSelectionEnd()) {
+            return areaTexto.getStyledDocument().getCharacterElement(inicio).getAttributes();
+        }
+        return areaTexto.getInputAttributes();
+    }
+
+    private void actualizarBarra() {
+        actualizandoBarra = true;
+        AttributeSet a = atributosActuales();
+        comboFuente.setSelectedItem(StyleConstants.getFontFamily(a));
+        comboTamano.setSelectedItem(StyleConstants.getFontSize(a));
+        btnNegrita.setSelected(StyleConstants.isBold(a));
+        btnCursiva.setSelected(StyleConstants.isItalic(a));
+        btnSubrayado.setSelected(StyleConstants.isUnderline(a));
+        btnTachado.setSelected(StyleConstants.isStrikeThrough(a));
+        actualizandoBarra = false;
     }
 
     public static void main(String[] args) {
